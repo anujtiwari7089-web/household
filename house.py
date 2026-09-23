@@ -93,9 +93,11 @@ def page_eda():
     
     st.divider()
 
+    # ----------------------------------------------------
     # 1. UNIVARIATE ANALYSIS VIEW
+    # ----------------------------------------------------
     if analysis_type == "Univariate Analysis":
-        st.subheader("1. Sub-metering Load Breakdown (Univariate Distribution)")
+        st.subheader("1. Sub-metering Load Breakdown")
         
         sub_means = pd.Series({
             'Sub_metering_1 (Kitchen)': df['Sub_metering_1'].mean(),
@@ -123,9 +125,38 @@ def page_eda():
             ax2.set_title("Average Consumption")
             st.pyplot(fig2)
 
+        st.divider()
+
+        # Added: Interactive Variable Distribution Section
+        st.subheader("2. Continuous Variable Distributions (Histogram & KDE)")
+        
+        selected_col = st.selectbox(
+            "Select Variable for Distribution Analysis:",
+            options=["Global_active_power", "Global_reactive_power", "Voltage", "Global_intensity"]
+        )
+        
+        col_hist1, col_hist2 = st.columns(2)
+        
+        with col_hist1:
+            st.markdown(f"**Histogram with KDE ({selected_col})**")
+            fig_hist, ax_hist = plt.subplots(figsize=(5, 3.5))
+            sns.histplot(df[selected_col], kde=True, color='#4C72B0', ax=ax_hist)
+            ax_hist.set_title(f"{selected_col} Distribution")
+            ax_hist.set_ylabel("Frequency")
+            st.pyplot(fig_hist)
+
+        with col_hist2:
+            st.markdown(f"**Box Plot for Outlier Inspection ({selected_col})**")
+            fig_box, ax_box = plt.subplots(figsize=(5, 3.5))
+            sns.boxplot(x=df[selected_col], color='#55A868', ax=ax_box)
+            ax_box.set_title(f"{selected_col} Box Plot")
+            st.pyplot(fig_box)
+
+    # ----------------------------------------------------
     # 2. BIVARIATE ANALYSIS VIEW
+    # ----------------------------------------------------
     elif analysis_type == "Bivariate Analysis":
-        st.subheader("2. Active vs. Reactive Power Across Months")
+        st.subheader("1. Active vs. Reactive Power Across Months")
         st.write("Comparing active power demand (bars) against reactive power loads (line) grouped by month.")
         
         month_order = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
@@ -141,22 +172,89 @@ def page_eda():
         ax_bar.set_ylabel('Global Active Power (Sum)', color='#4C72B0')
         ax_line.set_ylabel('Global Reactive Power (Sum)', color='#C44E52')
         
-        # Proper tick positioning fix
         ax_bar.set_xticks(range(len(monthly.index)))
         ax_bar.set_xticklabels(monthly.index, rotation=45, ha='right')
         fig3.suptitle("Active Power vs. Reactive Power by Month")
         
         st.pyplot(fig3)
 
+        st.divider()
+
+        # Added: Scatter & Regression Plots
+        st.subheader("2. Power vs. Intensity & Voltage Relationships")
+        
+        col_sc1, col_sc2 = st.columns(2)
+        
+        with col_sc1:
+            st.markdown("**Global Active Power vs. Global Intensity**")
+            fig_sc1, ax_sc1 = plt.subplots(figsize=(5, 3.5))
+            sns.regplot(data=df, x='Global_intensity', y='Global_active_power', color='#4C72B0', scatter_kws={'alpha':0.3}, ax=ax_sc1)
+            ax_sc1.set_title("Active Power vs. Current Intensity")
+            st.pyplot(fig_sc1)
+
+        with col_sc2:
+            st.markdown("**Global Active Power vs. Voltage**")
+            fig_sc2, ax_sc2 = plt.subplots(figsize=(5, 3.5))
+            sns.regplot(data=df, x='Voltage', y='Global_active_power', color='#C44E52', scatter_kws={'alpha':0.3}, ax=ax_sc2)
+            ax_sc2.set_title("Active Power vs. Voltage")
+            st.pyplot(fig_sc2)
+
+        st.divider()
+
+        # Added: Monthly Active Power Distribution Boxplot
+        st.subheader("3. Monthly Distribution of Global Active Power")
+        fig_m_box, ax_m_box = plt.subplots(figsize=(10, 4))
+        ordered_months = [m for m in month_order if m in df['Month_Name'].unique()]
+        sns.boxplot(data=df, x='Month_Name', y='Global_active_power', order=ordered_months, palette='Blues', ax=ax_m_box)
+        ax_m_box.set_title("Global Active Power Spread by Month")
+        ax_m_box.set_xticklabels(ax_m_box.get_xticklabels(), rotation=45, ha='right')
+        st.pyplot(fig_m_box)
+
+    # ----------------------------------------------------
     # 3. MULTIVARIATE ANALYSIS VIEW
+    # ----------------------------------------------------
     elif analysis_type == "Multivariate Analysis":
-        st.subheader("3. Feature Correlation Matrix")
+        st.subheader("1. Feature Correlation Matrix")
         st.write("Heatmap illustrating pairwise linear relationship dynamics among all continuous parameters.")
         
         fig4, ax4 = plt.subplots(figsize=(8, 4))
         numeric_df = df.select_dtypes(include=[np.number])
         sns.heatmap(numeric_df.corr(), annot=True, fmt=".2f", cmap="coolwarm", ax=ax4)
         st.pyplot(fig4)
+
+        st.divider()
+
+        # Added: Sub-metering Breakdown across Months
+        st.subheader("2. Monthly Sub-metering Consumption Breakdown")
+        st.write("Comparing sub-metered circuit consumption averages across months.")
+        
+        month_order = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+        sub_monthly = df.groupby('Month_Name', observed=False)[['Sub_metering_1', 'Sub_metering_2', 'Sub_metering_3']].mean()
+        sub_monthly = sub_monthly.reindex([m for m in month_order if m in sub_monthly.index])
+        
+        fig_sub_bar, ax_sub_bar = plt.subplots(figsize=(10, 4))
+        sub_monthly.plot(kind='bar', ax=ax_sub_bar, color=['#4C72B0', '#55A868', '#C44E52'], width=0.8)
+        ax_sub_bar.set_ylabel("Mean Consumption (Wh)")
+        ax_sub_bar.set_title("Sub-metering Circuit Load Comparison by Month")
+        ax_sub_bar.set_xticklabels(sub_monthly.index, rotation=45, ha='right')
+        ax_sub_bar.legend(['Kitchen (Sub 1)', 'Laundry (Sub 2)', 'Water Heater / AC (Sub 3)'])
+        st.pyplot(fig_sub_bar)
+
+        st.divider()
+
+        # Added: Pairwise Relationships Grid (Pairplot)
+        st.subheader("3. Pairwise Feature Interactions (Pairplot)")
+        selected_pair_vars = st.multiselect(
+            "Select features for Pairplot grid:",
+            options=['Global_active_power', 'Global_reactive_power', 'Voltage', 'Global_intensity'],
+            default=['Global_active_power', 'Global_intensity', 'Voltage']
+        )
+        
+        if len(selected_pair_vars) >= 2:
+            fig_pair = sns.pairplot(df[selected_pair_vars], diag_kind='kde', plot_kws={'alpha': 0.4})
+            st.pyplot(fig_pair.fig)
+        else:
+            st.warning("Select at least 2 features to generate the Pairplot.")
 
 
 def page_conclusion():
@@ -182,6 +280,4 @@ pg = st.navigation([
     st.Page(page_conclusion, title="3. Conclusion", icon="🎯")
 ])
 
-pg.run() 
-
-#New Changes Test
+pg.run()
